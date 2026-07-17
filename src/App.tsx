@@ -4,7 +4,8 @@ import {
   Laptop, Camera, Car, Activity, Heart, Search, Star, MapPin, Check, LogOut, LogIn,
   UserPlus, Shield, Sparkle, Menu, X, ArrowRight, CheckCircle2, TicketCheck, ShieldCheck,
   Building, Mail, Phone, Lock, UserCheck, BarChart3, Users, Instagram, Linkedin, Twitter,
-  Compass, Send, Copy, Map as MapIcon, MessageSquare, Award, DollarSign, Clock
+  Compass, Send, Copy, Map as MapIcon, MessageSquare, Award, DollarSign, Clock,
+  Briefcase, User as UserIcon
 } from "lucide-react";
 import { fetchApi } from "./lib/api";
 import { Category, ProfessionalProfile, User } from "./types";
@@ -88,6 +89,17 @@ export default function App() {
   useEffect(() => {
     setIsCaptchaVerified(false);
   }, [showAuthModal, authTab]);
+
+  // Google custom chooser states
+  const [showGoogleChooser, setShowGoogleChooser] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState("");
+  const [googleName, setGoogleName] = useState("");
+  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
+  const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
+
+  // Role Selection & Gender states
+  const [authRoleSelection, setAuthRoleSelection] = useState<"customer" | "professional" | null>(null);
+  const [regGender, setRegGender] = useState<string>("");
 
   // Login form fields
   const [email, setEmail] = useState("");
@@ -366,39 +378,80 @@ export default function App() {
   };
 
   const handleGoogleLogin = async () => {
+    setGoogleAuthLoading(true);
+    setGoogleAuthError(null);
     try {
-      const res = await fetchApi("/api/auth/google", {
-        method: "POST",
-        body: JSON.stringify({
-          email: "jeevanpvt25226@gmail.com",
-          name: "Jeevan Gowda",
-          avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80"
-        })
-      });
-      setUser(res.user);
-      localStorage.setItem("nammapro_token", res.token);
-      localStorage.setItem("nammapro_user", JSON.stringify(res.user));
-      setShowAuthModal(false);
-      alert("Successfully signed in with Google! Welcome back, Jeevan Gowda.");
+      const { signInWithPopup } = await import("firebase/auth");
+      const { auth, googleProvider } = await import("./lib/firebase");
+      
+      const result = await signInWithPopup(auth, googleProvider);
+      const fbUser = result.user;
+      
+      if (!fbUser || !fbUser.email) {
+        throw new Error("Could not retrieve email from Google Account.");
+      }
+      
+      const normalizedEmail = fbUser.email.toLowerCase().trim();
+      const isOwner = normalizedEmail === "jeevanpvt25226@gmail.com";
+      const gName = fbUser.displayName || "Google Partner";
+      const gAvatar = fbUser.photoURL || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80";
+
+      try {
+        const res = await fetchApi("/api/auth/google", {
+          method: "POST",
+          body: JSON.stringify({
+            email: normalizedEmail,
+            name: gName,
+            avatar: gAvatar
+          })
+        });
+        setUser(res.user);
+        localStorage.setItem("nammapro_token", res.token);
+        localStorage.setItem("nammapro_user", JSON.stringify(res.user));
+        setShowAuthModal(false);
+        
+        if (res.user.role === "admin" || res.user.role === "professional") {
+          setActivePage("dashboard");
+        } else {
+          setActivePage("home");
+        }
+        alert(`Successfully signed in with Google! Welcome back, ${res.user.name}.`);
+      } catch (backendErr) {
+        console.warn("Backend Google Sign-In API failed, completing on client side:", backendErr);
+        const fallbackUser = {
+          id: "user_" + Math.random().toString(36).substring(2, 7),
+          email: normalizedEmail,
+          name: gName,
+          role: isOwner ? "admin" : "customer",
+          phone: "+91 99999 99999",
+          avatar: gAvatar,
+          createdAt: new Date().toISOString(),
+          isVerified: true
+        };
+        setUser(fallbackUser as any);
+        localStorage.setItem("nammapro_token", "local_google_token_" + Math.random().toString(36).substring(2, 11));
+        localStorage.setItem("nammapro_user", JSON.stringify(fallbackUser));
+        setShowAuthModal(false);
+        
+        if (fallbackUser.role === "admin") {
+          setActivePage("dashboard");
+        } else {
+          setActivePage("home");
+        }
+        alert(`Successfully signed in with Google (Client-Side)! Welcome back, ${fallbackUser.name}.`);
+      }
     } catch (err: any) {
-      console.warn("Google Sign-In API failed, proceeding with premium client-side session:", err);
-      // Fallback for static servers / Vercel
-      const fallbackUser = {
-        id: "user_jeevan",
-        email: "jeevanpvt25226@gmail.com",
-        name: "Jeevan Gowda",
-        role: "admin", // Grant admin role to the user as requested/appropriate
-        phone: "+91 99999 99999",
-        avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
-        createdAt: new Date().toISOString(),
-        isVerified: true
-      };
-      setUser(fallbackUser);
-      localStorage.setItem("nammapro_token", "local_google_token_jeevan");
-      localStorage.setItem("nammapro_user", JSON.stringify(fallbackUser));
-      setShowAuthModal(false);
-      alert("Successfully signed in with Google (Client-Side Mode)! Welcome back, Jeevan Gowda.");
+      console.error("Firebase Google Auth failed:", err);
+      setGoogleAuthError(err.message || "Google Authentication failed. Please try again.");
+      alert("Google Auth Error: " + (err.message || "Authentication failed"));
+    } finally {
+      setGoogleAuthLoading(false);
     }
+  };
+
+  const submitGoogleLogin = async (gEmail: string, gName: string) => {
+    // Left as compatibility helper
+    handleGoogleLogin();
   };
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -454,6 +507,10 @@ export default function App() {
 
   const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!regGender) {
+      alert("Please select your gender.");
+      return;
+    }
     try {
       const res = await fetchApi("/api/auth/register", {
         method: "POST",
@@ -464,7 +521,8 @@ export default function App() {
           role: regRole,
           phone: regPhone,
           category: regCategory,
-          city: selectedCity
+          city: selectedCity,
+          gender: regGender
         })
       });
       setUser(res.user);
@@ -475,6 +533,7 @@ export default function App() {
       setEmail("");
       setPassword("");
       setRegPhone("");
+      setRegGender("");
       alert(`Registration complete! Welcome to NammaPro, ${res.user.name}.`);
     } catch (err: any) {
       console.warn("Register API failed, completing user setup locally:", err);
@@ -485,6 +544,7 @@ export default function App() {
         role: regRole,
         phone: regPhone || "+91 99999 99999",
         category: regCategory,
+        gender: regGender,
         avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80",
         createdAt: new Date().toISOString(),
         isVerified: true
@@ -497,6 +557,7 @@ export default function App() {
       setEmail("");
       setPassword("");
       setRegPhone("");
+      setRegGender("");
       alert(`Registration complete (Client-Side Mode)! Welcome to NammaPro, ${fallbackUser.name}.`);
     }
   };
@@ -515,6 +576,8 @@ export default function App() {
     const matchingPro = professionals.find(p => p.category === category) || professionals[0];
     if (matchingPro) {
       if (!user) {
+        setAuthRoleSelection("customer");
+        setRegRole("customer");
         setAuthTab("login");
         setShowAuthModal(true);
         alert("Please login first to complete your booking.");
@@ -739,7 +802,7 @@ export default function App() {
             <ThemeSwitcher />
  
             {user ? (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <div className="hidden lg:block text-right">
                   <p className="text-xs font-bold leading-tight">{user.name}</p>
                   <span className="text-[10px] uppercase font-mono tracking-widest text-yellow-600 dark:text-yellow-400">{user.role}</span>
@@ -747,12 +810,12 @@ export default function App() {
                 <img
                   src={user.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80"}
                   alt="Avatar"
-                  className="w-8.5 h-8.5 rounded-full border border-yellow-500/20 object-cover"
+                  className="w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-full border border-yellow-500/20 object-cover"
                 />
                 <button
                   id="signout-btn"
                   onClick={handleSignOut}
-                  className="p-2 bg-slate-100 hover:bg-rose-50 dark:bg-slate-900 dark:hover:bg-rose-950/20 text-slate-500 hover:text-rose-600 rounded-xl transition-all cursor-pointer"
+                  className="p-1.5 sm:p-2 bg-slate-100 hover:bg-rose-50 dark:bg-slate-900 dark:hover:bg-rose-950/20 text-slate-500 hover:text-rose-600 rounded-xl transition-all cursor-pointer"
                   title="Sign Out"
                 >
                   <LogOut className="w-4 h-4" />
@@ -762,12 +825,15 @@ export default function App() {
               <button
                 id="login-modal-open-btn"
                 onClick={() => {
+                  setAuthRoleSelection(null);
                   setAuthTab("login");
                   setShowAuthModal(true);
                 }}
-                className="px-4.5 py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer hover:shadow-lg"
+                className="px-2.5 py-1.5 sm:px-4 sm:py-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 rounded-xl font-bold text-xs shadow-md transition-all active:scale-95 flex items-center gap-1 cursor-pointer hover:shadow-lg whitespace-nowrap"
               >
-                <LogIn className="w-3.5 h-3.5" /> Sign In / Register
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+                <span className="hidden sm:inline">/Register</span>
               </button>
             )}
 
@@ -1284,6 +1350,8 @@ export default function App() {
                             id={`experts-book-expert-btn-${pro.id}`}
                             onClick={() => {
                               if (!user) {
+                                setAuthRoleSelection("customer");
+                                setRegRole("customer");
                                 setAuthTab("login");
                                 setShowAuthModal(true);
                                 alert("Please login first to complete your booking.");
@@ -1717,6 +1785,8 @@ export default function App() {
                             id={`map-book-pro-${pro.id}`}
                             onClick={() => {
                               if (!user) {
+                                setAuthRoleSelection("customer");
+                                setRegRole("customer");
                                 setAuthTab("login");
                                 setShowAuthModal(true);
                                 alert("Please login first to complete your booking.");
@@ -1806,6 +1876,8 @@ export default function App() {
                         <button
                           onClick={() => {
                             if (!user) {
+                              setAuthRoleSelection("customer");
+                              setRegRole("customer");
                               setAuthTab("login");
                               setShowAuthModal(true);
                               alert("Please login first to complete your booking.");
@@ -2088,175 +2160,221 @@ export default function App() {
               exit={{ scale: 0.95, opacity: 0 }}
               className="w-full max-w-md glass-panel border border-slate-200/50 dark:border-white/10 rounded-2xl shadow-2xl p-6 relative overflow-y-auto max-h-[90vh] scrollbar-thin"
             >
-              {/* Auto Login Shortcuts Bar */}
-              <div className="bg-white/50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-200/50 dark:border-white/10 mb-5 text-center">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400 dark:text-slate-500 block mb-2">Instant Evaluator Auto-Login</span>
-                <div className="flex gap-1.5 justify-center">
-                  <button
-                    id="autologin-customer-btn"
-                    onClick={() => handleAutoLogin("customer")}
-                    className="px-2.5 py-1 bg-white/80 hover:bg-blue-50 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-200 dark:border-white/10 rounded text-[10.5px] font-bold text-slate-700 dark:text-slate-300 transition-all active:scale-95 shadow-sm"
-                  >
-                    Customer
-                  </button>
-                  <button
-                    id="autologin-pro-btn"
-                    onClick={() => handleAutoLogin("professional")}
-                    className="px-2.5 py-1 bg-white/80 hover:bg-blue-50 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-200 dark:border-white/10 rounded text-[10.5px] font-bold text-slate-700 dark:text-slate-300 transition-all active:scale-95 shadow-sm"
-                  >
-                    Professional
-                  </button>
-                </div>
-              </div>
-
               {/* Close Button */}
               <button
                 id="close-auth-modal"
-                onClick={() => setShowAuthModal(false)}
+                onClick={() => {
+                  setShowAuthModal(false);
+                  setAuthRoleSelection(null);
+                }}
                 className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              {/* Tabs header */}
-              <div className="flex border-b border-slate-200/50 dark:border-white/10 pb-3 mb-5 gap-4">
-                <button
-                  id="tab-login"
-                  onClick={() => setAuthTab("login")}
-                  className={`text-sm font-bold pb-2 transition-all ${
-                    authTab === "login"
-                      ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                      : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                  }`}
-                >
-                  Sign In
-                </button>
-                <button
-                  id="tab-register"
-                  onClick={() => setAuthTab("register")}
-                  className={`text-sm font-bold pb-2 transition-all ${
-                    authTab === "register"
-                      ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
-                      : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                  }`}
-                >
-                  Create Account
-                </button>
-              </div>
-
-              {/* AUTH FORMS */}
-              <form onSubmit={authTab === "login" ? handleLoginSubmit : handleRegisterSubmit} className="space-y-4">
-                {authTab === "register" && (
-                  <>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Full Name</label>
-                      <input
-                        id="reg-name-input"
-                        type="text"
-                        value={regName}
-                        onChange={(e) => setRegName(e.target.value)}
-                        placeholder="e.g. Jeevan Gowda"
-                        className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Select Profile Role</label>
-                      <select
-                        id="reg-role-select"
-                        value={regRole}
-                        onChange={(e) => setRegRole(e.target.value as any)}
-                        className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
-                      >
-                        <option value="customer" className="bg-white dark:bg-slate-900">I want to book professionals (Customer)</option>
-                        <option value="professional" className="bg-white dark:bg-slate-900">I want to find service jobs (Professional)</option>
-                      </select>
-                    </div>
-
-                    {regRole === "professional" && (
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Primary Skill Speciality</label>
-                        <select
-                          id="reg-cat-select"
-                          value={regCategory}
-                          onChange={(e) => setRegCategory(e.target.value)}
-                          className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
-                        >
-                          {CATEGORIES.map(cat => (
-                            <option key={cat.id} value={cat.id} className="bg-white dark:bg-slate-900">{cat.name}</option>
-                          ))}
-                        </select>
+              {authRoleSelection === null ? (
+                <div className="text-center space-y-6 py-4 mt-2">
+                  <div>
+                    <h2 className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-white">Welcome to NammaPro</h2>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Please select your path to continue</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthRoleSelection("customer");
+                        setRegRole("customer");
+                        setAuthTab("login");
+                      }}
+                      className="w-full p-4 flex items-center gap-4 bg-slate-50 hover:bg-blue-50/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/50 border border-slate-200/60 dark:border-white/5 rounded-2xl text-left transition-all active:scale-98 group cursor-pointer hover:border-blue-500/30"
+                    >
+                      <div className="p-3 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl group-hover:scale-110 transition-transform">
+                        <UserIcon className="w-6 h-6" />
                       </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">I want to book professionals (Customer)</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Find background-verified local experts on-demand.</p>
+                      </div>
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthRoleSelection("professional");
+                        setRegRole("professional");
+                        setAuthTab("login");
+                      }}
+                      className="w-full p-4 flex items-center gap-4 bg-slate-50 hover:bg-emerald-50/50 dark:bg-slate-900/40 dark:hover:bg-slate-800/50 border border-slate-200/60 dark:border-white/5 rounded-2xl text-left transition-all active:scale-98 group cursor-pointer hover:border-emerald-500/30"
+                    >
+                      <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:scale-110 transition-transform">
+                        <Briefcase className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-white">I am a Professional Partner</h3>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Offer services, find jobs, and manage bookings.</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-200/50 dark:border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setAuthRoleSelection(null)}
+                      className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      ← Switch Role
+                    </button>
+                    <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                      {authRoleSelection === "customer" ? "Customer" : "Professional Partner"}
+                    </span>
+                  </div>
+
+                  {/* Tabs header */}
+                  <div className="flex border-b border-slate-200/50 dark:border-white/10 pb-3 mb-5 gap-4">
+                    <button
+                      id="tab-login"
+                      onClick={() => setAuthTab("login")}
+                      className={`text-sm font-bold pb-2 transition-all ${
+                        authTab === "login"
+                          ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
+                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      }`}
+                    >
+                      Sign In
+                    </button>
+                    <button
+                      id="tab-register"
+                      onClick={() => setAuthTab("register")}
+                      className={`text-sm font-bold pb-2 transition-all ${
+                        authTab === "register"
+                          ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400"
+                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      }`}
+                    >
+                      Create Account
+                    </button>
+                  </div>
+
+                  {/* AUTH FORMS */}
+                  <form onSubmit={authTab === "login" ? handleLoginSubmit : handleRegisterSubmit} className="space-y-4">
+                    {authTab === "register" && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Full Name</label>
+                          <input
+                            id="reg-name-input"
+                            type="text"
+                            value={regName}
+                            onChange={(e) => setRegName(e.target.value)}
+                            placeholder="e.g. Jeevan Gowda"
+                            className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
+                            required
+                          />
+                        </div>
+
+                        {regRole === "professional" && (
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Primary Skill Speciality</label>
+                            <select
+                              id="reg-cat-select"
+                              value={regCategory}
+                              onChange={(e) => setRegCategory(e.target.value)}
+                              className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
+                            >
+                              {CATEGORIES.map(cat => (
+                                <option key={cat.id} value={cat.id} className="bg-white dark:bg-slate-900">{cat.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Phone Number</label>
+                          <input
+                            id="reg-phone-input"
+                            type="tel"
+                            value={regPhone}
+                            onChange={(e) => setRegPhone(e.target.value)}
+                            placeholder="e.g. +91 81234 56789"
+                            className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Select Gender</label>
+                          <select
+                            id="reg-gender-select"
+                            value={regGender}
+                            onChange={(e) => setRegGender(e.target.value)}
+                            className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
+                            required
+                          >
+                            <option value="" className="bg-white dark:bg-slate-900">-- Select Gender --</option>
+                            <option value="Male" className="bg-white dark:bg-slate-900">Male</option>
+                            <option value="Female" className="bg-white dark:bg-slate-900">Female</option>
+                            <option value="Other" className="bg-white dark:bg-slate-900">Non-Binary / Other</option>
+                            <option value="PreferNotToSay" className="bg-white dark:bg-slate-900">Prefer not to say</option>
+                          </select>
+                        </div>
+                      </>
                     )}
 
                     <div>
-                      <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Phone Number</label>
+                      <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Email Address</label>
                       <input
-                        id="reg-phone-input"
-                        type="tel"
-                        value={regPhone}
-                        onChange={(e) => setRegPhone(e.target.value)}
-                        placeholder="e.g. +91 81234 56789"
+                        id="auth-email-input"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="e.g. user@nammapro.com"
                         className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
                         required
                       />
                     </div>
-                  </>
-                )}
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Email Address</label>
-                  <input
-                    id="auth-email-input"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="e.g. user@nammapro.com"
-                    className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
-                    required
-                  />
-                </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Secure Password</label>
+                      <input
+                        id="auth-password-input"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
+                        required
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1">Secure Password</label>
-                  <input
-                    id="auth-password-input"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-3 py-2 bg-white/55 dark:bg-slate-900/60 text-slate-800 dark:text-slate-100 text-sm border border-slate-200/50 dark:border-white/10 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
-                    required
-                  />
-                </div>
+                    {/* Gateway Verification Protection */}
+                    <HumanVerification onVerify={setIsCaptchaVerified} actionLabel={authTab === "login" ? "sign in" : "register"} />
 
-                {/* Gateway Verification Protection */}
-                <HumanVerification onVerify={setIsCaptchaVerified} actionLabel={authTab === "login" ? "sign in" : "register"} />
+                    <button
+                      id="auth-submit-btn"
+                      type="submit"
+                      disabled={!isCaptchaVerified}
+                      className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 dark:bg-yellow-500 dark:hover:bg-yellow-600 rounded-xl font-extrabold text-sm shadow-md transition-all active:scale-95 cursor-pointer"
+                    >
+                      {authTab === "login" ? "Sign In Securely" : "Register Credentials"}
+                    </button>
+                  </form>
 
-                <button
-                  id="auth-submit-btn"
-                  type="submit"
-                  disabled={!isCaptchaVerified}
-                  className="w-full py-2.5 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-40 disabled:cursor-not-allowed text-slate-950 dark:bg-yellow-500 dark:hover:bg-yellow-600 rounded-xl font-extrabold text-sm shadow-md transition-all active:scale-95"
-                >
-                  {authTab === "login" ? "Sign In Securely" : "Register Credentials"}
-                </button>
-              </form>
+                  {/* Or separator and Google Sign In */}
+                  <div className="mt-4">
+                    <div className="relative flex py-2 items-center">
+                      <div className="flex-grow border-t border-slate-200/50 dark:border-white/10"></div>
+                      <span className="flex-shrink mx-4 text-xs text-slate-400 dark:text-slate-500 font-medium">or</span>
+                      <div className="flex-grow border-t border-slate-200/50 dark:border-white/10"></div>
+                    </div>
 
-              {/* Or separator and Google Sign In */}
-              <div className="mt-4">
-                <div className="relative flex py-2 items-center">
-                  <div className="flex-grow border-t border-slate-200/50 dark:border-white/10"></div>
-                  <span className="flex-shrink mx-4 text-xs text-slate-400 dark:text-slate-500 font-medium">or</span>
-                  <div className="flex-grow border-t border-slate-200/50 dark:border-white/10"></div>
-                </div>
-
-                <button
-                  id="google-signin-btn"
-                  onClick={handleGoogleLogin}
-                  className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-white/10 rounded-xl font-extrabold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-                >
+                    <button
+                      id="google-signin-btn"
+                      onClick={handleGoogleLogin}
+                      className="w-full py-2.5 bg-white hover:bg-neutral-50 text-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800 border border-slate-200/50 dark:border-white/10 rounded-xl font-extrabold text-xs shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
@@ -2265,6 +2383,82 @@ export default function App() {
                   </svg>
                   <span>Continue with Google</span>
                 </button>
+              </div>
+            </>
+          )}
+        </motion.div>
+      </div>
+    )}
+  </AnimatePresence>
+
+      {/* Google Account Chooser Mock Modal */}
+      <AnimatePresence>
+        {showGoogleChooser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
+            <motion.div
+              id="google-chooser-dialog"
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 rounded-2xl shadow-2xl p-6 relative overflow-hidden text-slate-800 dark:text-slate-100"
+            >
+              {/* Google Brand Logo Header */}
+              <div className="flex flex-col items-center text-center space-y-2 mb-5">
+                <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                </svg>
+                <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Sign in with Google</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">to continue to NammaPro</p>
+              </div>
+
+              {/* Close Chooser */}
+              <button
+                id="close-google-chooser"
+                onClick={() => setShowGoogleChooser(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="space-y-4">
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Your Google Email</label>
+                    <input
+                      type="email"
+                      placeholder="e.g. rahul.kumar@gmail.com"
+                      value={googleEmail}
+                      onChange={(e) => setGoogleEmail(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs border border-slate-200/60 dark:border-white/5 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500 font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Your Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Rahul Kumar"
+                      value={googleName}
+                      onChange={(e) => setGoogleName(e.target.value)}
+                      className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 text-xs border border-slate-200/60 dark:border-white/5 rounded-xl focus:outline-none focus:ring-1.5 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => submitGoogleLogin(googleEmail, googleName)}
+                    className="w-full mt-2 py-2.5 bg-[#1a73e8] hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-all active:scale-95 cursor-pointer"
+                  >
+                    Next
+                  </button>
+                </div>
+
+                <div className="text-[9.5px] text-slate-400 dark:text-slate-500 leading-normal text-center pt-2.5 border-t border-slate-100 dark:border-white/5">
+                  Google will verify your account and share your email and name with NammaPro securely.
+                </div>
               </div>
             </motion.div>
           </div>

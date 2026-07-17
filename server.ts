@@ -633,7 +633,7 @@ function authenticateToken(req: Request, res: Response, next: NextFunction) {
 
 // Auth API endpoints
 app.post("/api/auth/register", (req, res) => {
-  const { email, password, name, role, phone, category, title, bio, hourlyRate, city } = req.body;
+  const { email, password, name, role, phone, category, title, bio, hourlyRate, city, gender } = req.body;
 
   if (!email || !password || !name || !role) {
     res.status(400).json({ error: "Missing required fields" });
@@ -662,6 +662,7 @@ app.post("/api/auth/register", (req, res) => {
     name,
     role: finalRole,
     phone,
+    gender: gender || "Not Specified",
     avatar: `https://images.unsplash.com/photo-${finalRole === "professional" ? "1507003211169-0a1dd7228f2d" : "1535713875002-d1d0cf377fde"}?w=150&auto=format&fit=crop&q=80`,
     createdAt: new Date().toISOString(),
     isVerified: finalRole === "customer" || finalRole === "admin"
