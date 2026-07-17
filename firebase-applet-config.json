@@ -1,12 +1,12 @@
 {
-  "projectId": "gen-lang-client-0190124233",
-  "appId": "1:451729947928:web:5e457d014ef1fa4cd9b26d",
-  "apiKey": "AIzaSyDqcJUeCEwylsVF0tmelx-n-S3ODAssJEM",
-  "authDomain": "gen-lang-client-0190124233.firebaseapp.com",
+  "apiKey": "AIzaSyDX61KJLDNz3HK4hwKNS60Q5-tpN7T8YTw",
+  "appId": "1:332263888398:web:d296ab831b683b47464e5f",
+  "projectId": "nammapro-a2179",
+  "authDomain": "nammapro-a2179.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-nammapro-4a134558-2fde-4e28-ada8-42268b927377",
-  "storageBucket": "gen-lang-client-0190124233.firebasestorage.app",
-  "messagingSenderId": "451729947928",
-  "measurementId": "",
+  "storageBucket": "nammapro-a2179.firebasestorage.app",
+  "messagingSenderId": "332263888398",
+  "measurementId": "G-DTTZXXHB1S",
   "oAuthClientId": "451729947928-lvvsidbcr8ds6rp8uphmuiieraqbidor.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }
