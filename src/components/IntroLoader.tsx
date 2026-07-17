@@ -125,7 +125,7 @@ export function IntroLoader({ onComplete }: IntroLoaderProps) {
                 damping: 12,
                 delay: i * 0.1,
               }}
-              className={`text-5xl sm:text-7xl md:text-8xl font-black tracking-tighter ${l.color} select-none transform transition-transform cursor-default`}
+              className={`text-3xl min-[360px]:text-4xl sm:text-7xl md:text-8xl font-black tracking-tight sm:tracking-tighter ${l.color} select-none transform transition-transform cursor-default`}
               style={{
                 perspective: "1000px",
                 transformStyle: "preserve-3d",
@@ -138,7 +138,7 @@ export function IntroLoader({ onComplete }: IntroLoaderProps) {
         </div>
 
         {/* 2. DROP-DOWN 3D PICTURE CARDS (PLUMBER, ELECTRICIAN, CLEANER) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-3xl pt-4 pb-2 relative min-h-[220px] md:min-h-0">
+        <div className="grid grid-cols-3 gap-2 sm:gap-6 w-full max-w-3xl pt-4 pb-2 relative">
           <AnimatePresence>
             {serviceCards.map((card) => (
               <motion.div
@@ -162,14 +162,14 @@ export function IntroLoader({ onComplete }: IntroLoaderProps) {
                   zIndex: 20,
                   boxShadow: "0 25px 50px -12px rgba(234, 179, 8, 0.25)"
                 }}
-                className={`relative bg-slate-900/90 border ${card.colorClass} rounded-2xl p-3 shadow-2xl flex flex-col gap-2.5 overflow-hidden group select-none backdrop-blur-md`}
+                className={`relative bg-slate-900/90 border ${card.colorClass} rounded-2xl p-2 sm:p-3 shadow-2xl flex flex-col gap-1.5 sm:gap-2.5 overflow-hidden group select-none backdrop-blur-md`}
                 style={{
                   perspective: "800px",
                   transformStyle: "preserve-3d"
                 }}
               >
                 {/* Unsplash Image Container */}
-                <div className="relative w-full h-28 rounded-xl overflow-hidden shadow-inner">
+                <div className="relative w-full h-14 sm:h-28 rounded-xl overflow-hidden shadow-inner">
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent z-10" />
                   <img
                     src={card.image}
@@ -178,15 +178,15 @@ export function IntroLoader({ onComplete }: IntroLoaderProps) {
                     referrerPolicy="no-referrer"
                   />
                   {/* Category icon badge */}
-                  <div className="absolute top-2 right-2 bg-slate-950/80 border border-white/10 p-1.5 rounded-lg z-20 shadow-md">
+                  <div className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-slate-950/80 border border-white/10 p-0.5 sm:p-1.5 rounded-md sm:rounded-lg z-20 shadow-md scale-75 sm:scale-100">
                     {card.icon}
                   </div>
                 </div>
 
                 {/* Card description details */}
-                <div className="text-left space-y-1">
-                  <span className="text-[9px] font-mono font-bold text-yellow-500 uppercase tracking-widest">{card.badge}</span>
-                  <h3 className="text-xs font-bold text-white flex items-center gap-1.5">
+                <div className="text-left space-y-0.5 sm:space-y-1">
+                  <span className="text-[7px] sm:text-[9px] font-mono font-bold text-yellow-500 uppercase tracking-widest block truncate">{card.badge}</span>
+                  <h3 className="text-[10px] sm:text-xs font-bold text-white flex items-center gap-1 sm:gap-1.5 truncate">
                     {card.title}
                   </h3>
                 </div>

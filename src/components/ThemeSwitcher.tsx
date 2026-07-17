@@ -3,7 +3,7 @@ import { Sun, Moon, Laptop } from "lucide-react";
 
 export default function ThemeSwitcher() {
   const [theme, setTheme] = useState<"light" | "dark" | "system">(() => {
-    return (localStorage.getItem("nammapro_theme") as "light" | "dark" | "system") || "system";
+    return (localStorage.getItem("nammapro_theme") as "light" | "dark" | "system") || "dark";
   });
 
   useEffect(() => {
