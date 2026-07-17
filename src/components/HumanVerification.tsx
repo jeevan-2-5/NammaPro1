@@ -106,7 +106,6 @@ export default function HumanVerification({ onVerify, actionLabel = "proceed" }:
         {/* Step 1: Solving the Simple Math Expression */}
         <div className="bg-white/40 dark:bg-slate-900/35 p-3 rounded-xl border border-slate-200/40 dark:border-white/5">
           <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 font-medium flex items-center gap-1">
-            <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
             <span>Step 1: Solve to authenticate</span>
           </p>
           <div className="flex items-center justify-between">
