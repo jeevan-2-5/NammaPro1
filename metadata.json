@@ -1,0 +1,6 @@
+{
+  "name": "NammaPro",
+  "description": "Find and book trusted local professionals near you. Premium marketplace for home services, cleaning, tutoring, repair, wellness, and more, integrated with a smart AI G1AI booking assistant.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
