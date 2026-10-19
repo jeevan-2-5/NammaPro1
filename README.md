@@ -85,7 +85,6 @@ This is a conceptual architecture based on the repository's dependencies and con
 ```text
 NammaPro1/
 ├── assets/
-│   └── .aistudio/
 ├── src/                         # Frontend source code
 ├── .env.example                 # Environment configuration template
 ├── .gitignore                   # Git exclusions
